@@ -10,11 +10,20 @@ class CMakeMultiDep(object):
                                              for p in deps_cpp_info.include_paths)
         self.lib_paths = "\n\t\t\t".join('"%s"' % p.replace("\\", "/")
                                          for p in deps_cpp_info.lib_paths)
-        if deps_cpp_info.lib_paths:
-            lib_path = deps_cpp_info.lib_paths[0].replace("\\", "/")
-            self.libs = " ".join(["%s/%s.lib" % (lib_path, lib) for lib in deps_cpp_info.libs])
-        else:
-            self.libs = ""
+        full_path_libs = []
+        for lib_path in deps_cpp_info.lib_paths:
+            lib_path = lib_path.replace("\\", "/")
+            files = os.listdir(lib_path)
+
+            for lib in deps_cpp_info.libs:
+                for f in files:
+                    if lib in f:  # account for 
+                        full_path_libs.append("%s/%s" % (lib_path, f))
+                        break
+                else:
+                    raise Exception("Cannot locate lib %s in %s" % (lib, files))
+
+        self.libs = " ".join(full_path_libs)
         self.defines = "\n\t\t\t".join("-D%s" % d for d in deps_cpp_info.defines)
         self.cppflags = " ".join(deps_cpp_info.cppflags)
         self.cflags = " ".join(deps_cpp_info.cflags)
@@ -101,8 +110,6 @@ endif()
 if(EXISTS conanbuildinfo_debug.cmake)
     include(${CMAKE_CURRENT_LIST_DIR}/conanbuildinfo_debug.cmake)
 endif()
-message(STATUS "INCLUDE RELEASE " ${CONAN_INCLUDE_DIRS_RELEASE})
-message(STATUS "INCLUDE DEBUG " ${CONAN_INCLUDE_DIRS_DEBUG})
 
 macro(conan_basic_setup)
     conan_check_compiler()
@@ -113,10 +120,11 @@ endmacro()
 
 macro(conan_set_find_paths)
     # CMake can find findXXX.cmake files in the root of packages
-    set(CMAKE_MODULE_PATH ${CONAN_CMAKE_MODULE_PATH} ${CMAKE_MODULE_PATH})
+    # set(CMAKE_MODULE_PATH ${CONAN_CMAKE_MODULE_PATH} ${CMAKE_MODULE_PATH})
 
     # Make find_package() to work
-    set(CMAKE_PREFIX_PATH ${CONAN_CMAKE_MODULE_PATH} ${CMAKE_PREFIX_PATH})
+    # set(CMAKE_PREFIX_PATH ${CONAN_CMAKE_MODULE_PATH} ${CMAKE_PREFIX_PATH})
+    message(STATUS "***** WARN: The cmake-multi conan generator does not support CMAKE_MODULE_PATH AND CMAKE_PREFIX_PATH *****")
 endmacro()
 
 macro(conan_flags_setup)
@@ -128,16 +136,24 @@ macro(conan_flags_setup)
                             "$<$<CONFIG:Debug>:${CONAN_INCLUDE_DIRS_DEBUG}>")
     endif()
 
-    add_definitions(${CONAN_DEFINES})
-
+    # add_defini tions(${CONAN_DEFINES})
+    add_compile_options(
+        "$<$<CONFIG:Debug>:${CONAN_DEFINES_DEBUG}>"
+        "$<$<CONFIG:Release>:${CONAN_DEFINES_RELEASE}>"
+    )
     # For find_library
-    set(CMAKE_INCLUDE_PATH ${CONAN_INCLUDE_DIRS} ${CMAKE_INCLUDE_PATH})
-    set(CMAKE_LIBRARY_PATH ${CONAN_LIB_DIRS} ${CMAKE_LIBRARY_PATH})
+    # set(CMAKE_INCLUDE_PATH ${CONAN_INCLUDE_DIRS} ${CMAKE_INCLUDE_PATH})
+    # set(CMAKE_LIBRARY_PATH ${CONAN_LIB_DIRS} ${CMAKE_LIBRARY_PATH})
 
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CONAN_CXX_FLAGS}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CONAN_C_FLAGS}")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${CONAN_SHARED_LINKER_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${CONAN_EXE_LINKER_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${CONAN_CXX_FLAGS_RELEASE}")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${CONAN_C_FLAGS_RELEASE}")
+    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} ${CONAN_SHARED_LINKER_FLAGS_RELEASE}")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} ${CONAN_EXE_LINKER_FLAGS_RELEASE}")
+
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${CONAN_CXX_FLAGS_DEBUG}")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${CONAN_C_FLAGS_DEBUG}")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} ${CONAN_SHARED_LINKER_FLAGS_DEBUG}")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} ${CONAN_EXE_LINKER_FLAGS_DEBUG}")
 
     if(APPLE)
         # https://cmake.org/Wiki/CMake_RPATH_handling
