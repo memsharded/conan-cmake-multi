@@ -1,4 +1,5 @@
 import os, shutil
+import platform
 
 def run(command):
 	ret = os.system(command)
@@ -26,7 +27,8 @@ except:
 	pass
 os.makedirs("build")
 os.chdir("build")
-run("conan install .. -s build_type=Debug --build=missing")
+install_debug_options = '-s compiler="Visual Studio" -s compiler.runtime="MDd"' if platform.system() == "Windows" else ""
+run("conan install .. -s build_type=Debug %s --build=missing" % install_debug_options)
 run("conan install .. -s build_type=Release --build=missing")
 run('cmake .. -G "Visual Studio 14 Win64"')
 run("cmake --build . --config Release")
